@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP数据自动化处理工具 | 小羊建站</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #4F46E5; --primary-dark: #4338CA;
+  --bg: #F1F5F9; --card: #fff; --text: #1E293B;
+  --text-secondary: #64748B; --border: #E2E8F0;
+  --success: #10B981; --danger: #EF4444; --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+}
+.header {
+  background: linear-gradient(135deg, #1E1B4B, #312E81);
+  color: #fff; padding: 32px 0; text-align: center;
+}
+.header h1 { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+.header p { color: rgba(255,255,255,0.7); font-size: 14px; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+
+/* 上传区域 */
+.upload-section { margin: 32px 0 24px; }
+.upload-box {
+  background: var(--card); border: 2px dashed var(--border);
+  border-radius: var(--radius); padding: 48px; text-align: center;
+  transition: all 0.2s; cursor: pointer;
+}
+.upload-box:hover { border-color: var(--primary); background: #F8FAFF; }
+.upload-box .icon { font-size: 48px; margin-bottom: 12px; }
+.upload-box h3 { font-size: 18px; margin-bottom: 6px; }
+.upload-box p { font-size: 13px; color: var(--text-secondary); }
+.upload-box input { display: none; }
+
+/* 工具栏 */
+.toolbar {
+  background: var(--card); border-radius: var(--radius);
+  padding: 20px 24px; margin-bottom: 24px;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  border: 1px solid var(--border);
+}
+.toolbar .label { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-right: 8px; }
+.btn {
+  padding: 8px 18px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-outline {
+  background: #fff; color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-danger { background: #fff; color: var(--danger); border: 1px solid #FECACA; }
+.btn-danger:hover { background: #FEF2F2; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 统计卡片 */
+.stats-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px; margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 16px 20px; border: 1px solid var(--border); text-align: center;
+}
+.stat-card .num { font-size: 28px; font-weight: 800; color: var(--primary); }
+.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* 数据表格 */
+.table-wrapper {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--border); overflow: hidden;
+  margin-bottom: 24px;
+}
+.table-header {
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.table-header h3 { font-size: 16px; }
+.table-header .badge { font-size: 12px; color: var(--text-secondary); }
+.scroll-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { position: sticky; top: 0; z-index: 10; }
+thead th {
+  background: #F8FAFC; padding: 10px 14px; text-align: left;
+  font-weight: 700; border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+tbody td { padding: 8px 14px; border-bottom: 1px solid #F1F5F9; }
+tbody tr:hover { background: #F8FAFF; }
+
+/* 日志 */
+.log-area {
+  background: #1E1B4B; color: #A5B4FC; border-radius: var(--radius);
+  padding: 16px 20px; font-size: 12px; font-family: "SF Mono","Fira Code",monospace;
+  max-height: 180px; overflow-y: auto; margin-bottom: 24px; line-height: 1.8;
+}
+.log-area .info { color: #6EE7B7; }
+.log-area .warn { color: #FBBF24; }
+.log-area .error { color: #FCA5A5; }
+
+.hidden { display: none !important; }
+footer { text-align: center; padding: 24px; font-size: 12px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="container">
+    <h1>📊 ERP 数据自动化处理工具</h1>
+    <p>上传 Excel → 智能清洗 → 一键导出标准报表</p>
+  </div>
+</div>
+
+<div class="container">
+  <!-- 上传 -->
+  <div class="upload-section">
+    <div class="upload-box" id="uploadBox" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📁</div>
+      <h3>点击上传 Excel 文件</h3>
+      <p>支持 .xlsx / .xls / .csv 格式，数据仅在本地浏览器处理，不会上传到任何服务器</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFile(event)">
+    </div>
+  </div>
+
+  <!-- 工具栏 -->
+  <div class="toolbar hidden" id="toolbar">
+    <span class="label">🔧 数据清洗：</span>
+    <button class="btn btn-outline" onclick="cleanDuplicates()">🗑 去重</button>
+    <button class="btn btn-outline" onclick="cleanTrimAll()">✂️ 去空格</button>
+    <button class="btn btn-outline" onclick="cleanFillEmpty()">📝 填充空值</button>
+    <button class="btn btn-outline" onclick="cleanStandardizeColumns()">📋 标准化列名</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-success" onclick="exportData()">📥 导出 Excel</button>
+    <button class="btn btn-danger" onclick="resetAll()">🔄 重置</button>
+  </div>
+
+  <!-- 统计 -->
+  <div class="stats-row hidden" id="statsRow"></div>
+
+  <!-- 日志 -->
+  <div class="log-area hidden" id="logArea"></div>
+
+  <!-- 数据表格 -->
+  <div class="table-wrapper hidden" id="tableWrapper">
+    <div class="table-header">
+      <h3>📋 数据预览</h3>
+      <span class="badge" id="rowCount"></span>
+    </div>
+    <div class="scroll-wrap" id="tableBody"></div>
+  </div>
+</div>
+
+<footer>© 2026 小羊建站 · ERP数据自动化工具 · 数据仅在本地处理，安全可靠</footer>
+
+<script>
+let currentData = [];
+let originalData = [];
+let columns = [];
+
+function log(msg, type = 'info') {
+  const area = document.getElementById('logArea');
+  area.classList.remove('hidden');
+  const now = new Date().toLocaleTimeString();
+  area.innerHTML += `<div class="${type}">[${now}] ${msg}</div>`;
+  area.scrollTop = area.scrollHeight;
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  log('正在读取文件：' + file.name, 'info');
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (json.length === 0) { log('文件为空或无法解析', 'error'); return; }
+
+      columns = Object.keys(json[0]);
+      originalData = JSON.parse(JSON.stringify(json));
+      currentData = JSON.parse(JSON.stringify(json));
+
+      log(`✓ 读取成功：${json.length} 行，${columns.length} 列`, 'info');
+      log(`列名：${columns.join(', ')}`, 'info');
+      renderAll();
+    } catch(err) {
+      log('文件解析失败：' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderAll() {
+  renderStats();
+  renderTable();
+  document.getElementById('toolbar').classList.remove('hidden');
+  document.getElementById('tableWrapper').classList.remove('hidden');
+  document.getElementById('statsRow').classList.remove('hidden');
+}
+
+function renderStats() {
+  const totalRows = currentData.length;
+  const totalCols = columns.length;
+  let emptyCount = 0;
+  currentData.forEach(row => {
+    columns.forEach(col => { if (row[col] === '' || row[col] === null) emptyCount++; });
+  });
+  const totalCells = totalRows * totalCols;
+  const completeness = totalCells > 0 ? ((totalCells - emptyCount) / totalCells * 100).toFixed(1) : 100;
+
+  // 检查重复
+  const seen = new Set();
+  let dups = 0;
+  currentData.forEach(row => { const key = JSON.stringify(row); if (seen.has(key)) dups++; else seen.add(key); });
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="num">${totalRows}</div><div class="label">数据行数</div></div>
+    <div class="stat-card"><div class="num">${totalCols}</div><div class="label">数据列数</div></div>
+    <div class="stat-card"><div class="num">${completeness}%</div><div class="label">数据完整度</div></div>
+    <div class="stat-card"><div class="num">${dups}</div><div class="label">重复行</div></div>
+    <div class="stat-card"><div class="num">${emptyCount}</div><div class="label">空单元格</div></div>
+  `;
+  document.getElementById('rowCount').textContent = `共 ${totalRows} 行 · ${totalCols} 列`;
+}
+
+function renderTable() {
+  const wrapper = document.getElementById('tableBody');
+  if (currentData.length === 0) { wrapper.innerHTML = '<p style="padding:24px;text-align:center;color:#999;">暂无数据</p>'; return; }
+
+  const displayCols = columns.slice(0, 15); // 最多显示15列
+  let html = '<table><thead><tr><th>#</th>';
+  displayCols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+
+  const displayRows = currentData.slice(0, 500);
+  displayRows.forEach((row, i) => {
+    html += `<tr><td style="color:#999;">${i+1}</td>`;
+    displayCols.forEach(c => {
+      const val = row[c] !== undefined && row[c] !== null ? String(row[c]) : '';
+      html += `<td>${val.length > 50 ? val.slice(0,50)+'...' : val}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  if (currentData.length > 500) html += `<tr><td colspan="${displayCols.length+1}" style="text-align:center;color:#999;">... 仅显示前500行，共${currentData.length}行</td></tr>`;
+  if (columns.length > 15) html += `<tr><td colspan="${displayCols.length+1}" style="text-align:center;color:#999;">... 仅显示前15列，共${columns.length}列</td></tr>`;
+
+  html += '</tbody></table>';
+  wrapper.innerHTML = html;
+}
+
+// ===== 清洗功能 =====
+function cleanDuplicates() {
+  const before = currentData.length;
+  const seen = new Set();
+  currentData = currentData.filter(row => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const removed = before - currentData.length;
+  log(`✔ 去重完成：移除 ${removed} 行重复数据`, removed > 0 ? 'info' : 'warn');
+  renderAll();
+}
+
+function cleanTrimAll() {
+  let count = 0;
+  currentData.forEach(row => {
+    columns.forEach(col => {
+      if (typeof row[col] === 'string' && row[col] !== row[col].trim()) {
+        row[col] = row[col].trim();
+        count++;
+      }
+    });
+  });
+  log(`✔ 去空格完成：修复 ${count} 个单元格`, 'info');
+  renderAll();
+}
+
+function cleanFillEmpty() {
+  let count = 0;
+  currentData.forEach(row => {
+    columns.forEach(col => {
+      if (row[col] === '' || row[col] === null || row[col] === undefined) {
+        row[col] = '-';
+        count++;
+      }
+    });
+  });
+  log(`✔ 空值填充完成：填充 ${count} 个单元格为 "-"`, 'info');
+  renderAll();
+}
+
+function cleanStandardizeColumns() {
+  const renameMap = {};
+  columns.forEach(col => {
+    let clean = col.trim()
+      .replace(/^[0-9]+[\.\、\s]+/, '')
+      .replace(/[（(].*?[)）]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[^\w一-鿿]/g, '')
+      .replace(/_{2,}/g, '_')
+      .replace(/^_|_$/g, '');
+    if (!clean || clean.length === 0) clean = 'column';
+    if (clean !== col || columns.filter(c => c === clean).length > 1) {
+      renameMap[col] = clean;
+    }
+  });
+
+  if (Object.keys(renameMap).length === 0) {
+    log('列名已经足够标准，无需修改', 'warn');
+    return;
+  }
+
+  currentData = currentData.map(row => {
+    const newRow = {};
+    Object.keys(row).forEach(key => {
+      const newKey = renameMap[key] || key;
+      // 处理重名
+      let finalKey = newKey;
+      let suffix = 1;
+      while (newRow[finalKey] !== undefined) finalKey = newKey + '_' + (suffix++);
+      newRow[finalKey] = row[key];
+    });
+    return newRow;
+  });
+
+  columns = Object.keys(currentData[0] || {});
+  log(`✔ 列名标准化完成：修改 ${Object.keys(renameMap).length} 个列名`, 'info');
+  log(`新列名：${columns.join(', ')}`, 'info');
+  renderAll();
+}
+
+function exportData() {
+  if (currentData.length === 0) { log('没有数据可导出', 'error'); return; }
+  const ws = XLSX.utils.json_to_sheet(currentData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '处理结果');
+  XLSX.writeFile(wb, 'ERP数据处理结果.xlsx');
+  log('📥 导出成功：ERP数据处理结果.xlsx', 'info');
+}
+
+function resetAll() {
+  if (originalData.length === 0) return;
+  currentData = JSON.parse(JSON.stringify(originalData));
+  columns = Object.keys(currentData[0] || {});
+  log('🔄 已重置为原始数据', 'info');
+  renderAll();
+}
+
+// 拖拽上传
+const uploadBox = document.getElementById('uploadBox');
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.style.borderColor = '#4F46E5'; });
+uploadBox.addEventListener('dragleave', () => uploadBox.style.borderColor = '');
+uploadBox.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadBox.style.borderColor = '';
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const input = document.getElementById('fileInput');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    handleFile({ target: input });
+  }
+});
+</script>
+</body>
+</html>
